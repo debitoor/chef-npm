@@ -3,6 +3,12 @@
 require 'chef/mixin/shell_out'
 include Chef::Mixin::ShellOut
 
+def whyrun_supported?
+  true
+end
+
+use_inline_resources if defined?(use_inline_resources)
+
 def get_npmcmd(args)
   case node[:platform_family]
   when 'windows'
@@ -13,10 +19,22 @@ def get_npmcmd(args)
   "#{npmcmd} #{args}"
 end
 
+def load_current_resource
+  @current_resource = Chef::Resource::NpmPackage.new(@new_resource.name)
+  @current_resource.name(@new_resource.name)
 
-def package_installed(pkg_id, cwd="")
-  cdcmd = cwd == "" ?  "" : "cd #{cwd} && "
-  npmcmd = get_npmcmd("--no-color -g ls #{pkg_id}")
+  pkg_id = new_resource.name
+  pkg_id += "@#{new_resource.version}" if new_resource.version
+
+  @current_resource.installed = package_installed(pkg_id, @new_resource.path)
+  
+  Chef::Log.debug("#{pkg_id} installed: #{ @current_resource.installed }")
+end
+
+def package_installed(pkg_id, cwd=nil)
+  cdcmd = cwd.nil? ?  "" : "cd #{cwd} && "
+  global_flag = cwd.nil? ? "-g" : ""
+  npmcmd = get_npmcmd("--no-color #{global_flag} ls #{pkg_id}")
   cmd = "#{cdcmd}#{npmcmd}"
   p = shell_out(cmd)
   res = /#{pkg_id}/ =~ p.stdout 
@@ -24,25 +42,39 @@ def package_installed(pkg_id, cwd="")
   res
 end
 
-use_inline_resources if defined?(use_inline_resources)
-
-action :install do
+def run_npm(cmd)
   pkg_id = new_resource.name
   pkg_id += "@#{new_resource.version}" if new_resource.version
-  execute "install NPM package #{new_resource.name}" do
-    command get_npmcmd("-g install #{pkg_id}")
-    not_if {package_installed(pkg_id)}
+
+  if new_resource.path
+    execute "#{cmd} NPM package #{pkg_id} into #{new_resource.path}" do
+      cwd new_resource.path
+      command get_npmcmd("#{cmd} #{pkg_id}")
+    end
+  else
+    execute "#{cmd} NPM package #{pkg_id}" do
+      command get_npmcmd("-g #{cmd} #{pkg_id}")
+    end
   end
 end
 
-action :install_local do
-  path = new_resource.path if new_resource.path
-  pkg_id = new_resource.name
-  pkg_id += "@#{new_resource.version}" if new_resource.version
-  execute "install NPM package #{new_resource.name} into #{path}" do
-    cwd path
-    command get_npmcmd("install #{pkg_id}")
-    not_if {package_installed(pkg_id, path)}
+action :install do
+  if @current_resource.installed
+    Chef::Log.info "#{ @new_resource } already installed - nothing to do."
+  else
+    converge_by("Install NPM module #{ @new_resource }") do
+      run_npm("install")
+    end
+  end
+end
+
+action :uninstall do
+  if @current_resource.installed
+    converge_by("Uninstall NPM module #{ @new_resource }") do
+      run_npm("uninstall")
+    end
+  else
+    Chef::Log.info "#{ @new_resource } not installed - nothing to do."
   end
 end
 
@@ -54,22 +86,3 @@ action :install_from_json do
   end
 end
 
-action :uninstall do
-  pkg_id = new_resource.name
-  pkg_id += "@#{new_resource.version}" if new_resource.version
-  execute "uninstall NPM package #{new_resource.name}" do
-    command get_npmcmd("-g uninstall #{pkg_id}")
-    only_if {package_installed(pkg_id)}
-  end
-end
-
-action :uninstall_local do
-  path = new_resource.path if new_resource.path
-  pkg_id = new_resource.name
-  pkg_id += "@#{new_resource.version}" if new_resource.version
-  execute "uninstall NPM package #{new_resource.name} from #{path}" do
-    cwd path
-    command get_npmcmd("uninstall #{pkg_id}")
-    only_if {package_installed(pkg_id, path)}
-  end
-end
