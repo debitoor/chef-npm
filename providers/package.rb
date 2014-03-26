@@ -65,6 +65,7 @@ action :install do
     converge_by("Install NPM module #{ @new_resource }") do
       run_npm("install")
     end
+    @new_resource.updated_by_last_action(true)
   end
 end
 
@@ -73,6 +74,7 @@ action :uninstall do
     converge_by("Uninstall NPM module #{ @new_resource }") do
       run_npm("uninstall")
     end
+    @new_resource.updated_by_last_action(true)
   else
     Chef::Log.info "#{ @new_resource } not installed - nothing to do."
   end
