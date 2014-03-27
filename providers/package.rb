@@ -46,6 +46,10 @@ def run_npm(cmd)
   pkg_id = new_resource.name
   pkg_id += "@#{new_resource.version}" if new_resource.version
 
+  if cmd == "install" && new_resource.source_path
+    pkg_id = new_resource.source_path
+  end
+    
   if new_resource.path
     execute "#{cmd} NPM package #{pkg_id} into #{new_resource.path}" do
       cwd new_resource.path

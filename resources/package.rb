@@ -24,6 +24,7 @@ actions :install,  :install_from_json, :uninstall
 attribute :name, :name_attribute => true
 attribute :version, :default => nil
 attribute :path, :default => nil
+attribute :source_path, :default => nil
 
 attr_accessor :installed
 
