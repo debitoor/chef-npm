@@ -12,7 +12,7 @@ use_inline_resources if defined?(use_inline_resources)
 def get_npmcmd(args)
   case node[:platform_family]
   when 'windows'
-    if File.exists?('"C:/Program files/nodejs/npm.cmd"')
+    if ::File.exists?('"C:/Program files/nodejs/npm.cmd"')
       # Use 64bit as default
       npmcmd = '"C:/Program files/nodejs/npm"'          
     else
